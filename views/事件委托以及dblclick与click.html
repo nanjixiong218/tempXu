@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>
+			test
+		</title>
+		<style type="text/css">
+		</style>
+		<script type="text/javascript" src="../modules/sea-debug.js">
+		
+		</script>
+		<script type="text/javascript">
+			seajs.config({
+				base:"../modules",	
+				alias:{
+				"jquery":"jquery/jquery-1.11.0.js"
+				     }
+			})
+		seajs.use("jquery",function(){//û�а�װ��jquery,�������β�Ҳ����
+		$(function(){
+					$("input[type='button']").click(function(){
+						$("<li>after</li>").appendTo($("#u"));
+						});
+					var t=null;
+					$("ul").bind("click",function(event){//�ø��ְ󶨶����԰���ֱ��click(),on("click"),bind("click")
+						//�����ʾ�Ĵ��ݽ�����ԭ���event����bug
+						clearTimeout(t);
+						var eve = event;
+						console.log(eve);//eve��currentTargetΪnull
+						console.log(eve.currentTarget);//ȴ�ܹ���ӡ����,(��ʾ��event���󴫵ݽ����Ϳ����ˣ�event����jquery��event)
+						t = setTimeout(function(){
+							console.log(event);//����jquery��event�Ϳ��Դ��ݽ�����
+							console.log(event.currentTarget);//����ʹ�ӡ������
+							},300);
+						});
+				//	ie�ж�Ӧeve.currentTarget������ΪactiveElement,ie�в����������bug
+					$("ul").bind("dblclick",function(){//ͬʱ��click��dblclick�¼�������˫����ʱ���������ε����¼���һ��˫���¼�
+							clearTimeout(t);
+							console.log(event.currentTarget);
+							console.log(event);
+							var ul = event.currentTarget;	
+							var li = event.target;
+							console.log(li);
+							console.log(ul);
+						});
+			});	
+		
+		
+		});
+		
+		</script>
+	</head>
+
+	<body>
+		<ul id="u">
+			<li>before</li>
+		</ul>
+
+		<input type="button" value="get li"/>
+	</body>
+</html>
+
