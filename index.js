@@ -4,13 +4,13 @@ var fs = require("fs");
 var path = require("path");
 var files = {};//文件缓存
 var cache = {};//缓存，可以替换成高级点的缓存模块
-var VIEWS_FOLDER = './views/';//应该换成绝对路径
+var VIEWS_FOLDER = './views/';//使用绝对路径还是不行
 
 //设置action方法
 var exports = {};//action
 exports.userAction = function(req,res){
-    var html = render("./views/事件委托以及dblclick与click.html");//如何使用绝对路径？
-    res.render("test.html",data);//之所以用这个html还不行，是因为这个html中有单引号,把所有的单引号替换为\'就好了
+    //var html = render("/routeTemplate/views/事件委托以及dblclick与click.html");
+    res.render("test.html",data);//
 
 }
 //配置路由映射
@@ -55,6 +55,43 @@ http.createServer(function(req,res){
         }
     }
     handle404(req,res);
+    /**
+     * 第一个完整版渲染引擎,把它放在了createServer里面形成了一个闭包，这样才能访问到res，是不是不太好，最好是用中间件形式
+     * @param viewname
+     * @param data
+     */
+    function renderXuV6(viewname,data){
+        var layout = data.layout;
+        if(layout){
+            if(!cache[layoout]){
+                try{
+                    cache[layout]=fs.readFileSync(path.join(VIEWS_FOLDER,layout),'utf-8');
+                }
+                catch(e){
+                    res.writeHead(500,{'Content-Type':'text/html'});
+                    res.end('layout file failed download ！');
+                    return;
+                }
+            }
+        }
+        var layoutContent = cache[layout]||'<%-body%>';//如果没有指定布局文件，那么布局文件直接就是这个字符串
+        var text =''
+        try{
+            text = renderlayoutXu(layoutContent,viewname);
+        }catch(e){
+            res.writeHead(500,{'Content-Type':'text/html'});
+            res.end('template file failed download!');//如何解决中文乱码问题
+            return;
+        }
+        var key = viewname+':'+layout;
+        cache[key]=compileXuV6(text);
+
+        var compiled = cache[key];
+        res.writeHead(200,{'Content-Type':'text/html'});
+        var html = compiled(data,escape);
+        res.end(html);
+    }
+
 
 }).listen(1337,'127.0.0.1');
 
@@ -108,42 +145,6 @@ function use(path,action){
  */
 function render(filePath){
     return fs.readFileSync(filePath);//这里无法使用异步读取，因为render方法是同步的。
-}
-/**
- * 第一个完整版渲染引擎
- * @param viewname
- * @param data
- */
-function renderXuV6(viewname,data){
-    var layout = data.layout;
-    if(layout){
-        if(!cache[layoout]){
-            try{
-                cache[layout]=fs.readFileSync(path.join(VIEWS_FOLDER,layout),'utf-8');
-            }
-            catch(e){
-                res.writeHead(500,{'Content-Type':'text/html'});
-                res.end('layout file failed download ！');
-                return;
-            }
-        }
-    }
-    var layoutContent = cache[layout]||'<%-body%>';//如果没有指定布局文件，那么布局文件直接就是这个字符串
-    var text =''
-    try{
-        text = renderlayoutXu(layoutContent,viewname);
-    }catch(e){
-        res.writeHead(500,{'Content-Type':'text/html'});
-        res.end('template file failed download!');//如何解决中文乱码问题
-        return;
-    }
-    var key = viewname+':'+layout;
-    cache[key]=compileXuV6(text);
-
-    var compiled = cache[key];
-    res.writeHead(200,{'Content-Type':'text/html'});
-    var html = compiled(data,escape);
-    res.end(html);
 }
 
 /**
