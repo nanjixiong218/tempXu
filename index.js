@@ -39,7 +39,19 @@ var app={};
 ['get','post','delete','put'].forEach(function(method){
     routes[method] = [];
     app[method] = function(path,action){
-        routes[method].push([pathRegexp(path),action]);
+        var handle;
+        if(typeof path =="string"){//如果第一个参数是字符串说明是路径，后面的是中间件
+            handle = {
+                path:pathRegexp(path),
+                stack:Array.prototype.slice.call(arguments,1)
+            };
+        }else{//如果第一个参数不是字符串，那就全当中间件处理,并且把path设为访问根路径
+            handle = {
+                path:pathRegexp("/"),
+                stack:Array.prototype.slice.call(arguments,0)
+            };
+        }
+        routes[method].push(handle);
     }
 });
 app.use = use;
@@ -126,10 +138,11 @@ http.createServer(function(req,res){
      * @param routes
      */
     function match(pathname,routes){
+        var stacks = [];
         for(var i = 0;i<routes.length;i++){
             var route = routes[i];
-            var keys =route[0].keys;
-            var reg = route[0].regexp;
+            var keys =route.path.keys;
+            var reg = route.path.regexp;
             var matched = reg.exec(pathname);
             if(matched){
                 var params ={};
@@ -138,14 +151,13 @@ http.createServer(function(req,res){
                     if(value){
                         params[keys[i]]=value;
                     }
-                }
+                };
+                //将中间件交给handle方法处理
                 req.params = params;
-                var action = route[1];
-                action(req,res);
-                return true;
+                stacks = stacks.concat(route.stack);
             }
         }
-        return false;
+        return stacks;
     };
     /**
      * 路由分发部分
@@ -153,24 +165,16 @@ http.createServer(function(req,res){
     function route(){
         var pathname = url.parse(req.url).pathname;
         var method = req.method.toLowerCase();
-        //根据请求方法类型进行分发
-        if(routes.hasOwnProperty(method)){
-            if(match(pathname,routes[method])){
-                return;
-            }else{
-                //get中没有设置对应的匹配，尝试用all中的匹配进行处理
-                if(match(pathname,routes.all)){
-                    return;
-                }
-            }
-        }else{//没有设置method方法用all处理
-            if(match(pathname,routes.all)){
-                return;
-            }
+        var stacks = match(pathname,routes.all);//这样的话，如果在use中设置了action，get，post等中设置的action将不会执行到
+        if(routes.hasOwnProperty(method)){//写了中间件这个位置代码简化很多
+            stacks = stacks.concat(match(pathname,routes[method]));
+        };
+        if(stacks.length){
+            handleMiddle(req,res,stacks);
+        }else{
+            handle404(req,res);
         }
     }
-
-
 }).listen(1337,'127.0.0.1');
 
 
@@ -214,9 +218,21 @@ function pathRegexp(path){
  * @param path
  * @param action
  */
-function use(path,action){
-    routes.all.push([pathRegexp(path),action]);
-}
+function use(path){
+    var handle;
+    if(typeof path =="string"){//如果第一个参数是字符串说明是路径，后面的是中间件
+        handle = {
+            path:pathRegexp(path),
+            stack:Array.prototype.slice.call(arguments,1)
+        };
+    }else{//如果第一个参数不是字符串，那就全当中间件处理,并且把path设为访问根路径
+        handle = {
+            path:pathRegexp("/"),
+            stack:Array.prototype.slice.call(arguments,0)
+        };
+    }
+    routes.all.push(handle);
+};
 
 /**
  * 最简单的渲染
@@ -286,6 +302,37 @@ function compileXuV6(str){
     tpl = "var tpl = '';\nwith(obj||{}){\n"+tpl+"\n}\nreturn tpl;";
     return new Function('obj,escape',tpl);
 }
-
-
+/**
+ * 中间件
+ */
+function querystring (req,res,next){
+    req.querystring  = url.parse(req.url).querystring;
+    next();
+}
+function cookie(){
+    var cookie = req.headers.cookie;
+    var cookies = {};
+    if(cookie){
+        var list = cookie.split(";");
+        for(var i=0;i<list.length;i++){
+            var pair = list[i].split("=");
+            cookies[pair[0].trim()]=pari[1];
+        }
+    }
+    req.cookie = cookies;
+    next();
+};
+/**
+ * 用于处理中间件的方法,这个方法很不错
+ */
+function handleMiddle(req,res,stack){
+    var next =function(){
+        var middleWare = stack.shift();
+        if(middleWare){
+            //传入next使其能够递归调用，这也是编写中间件是必须写next参数，并在最后调用next（）的原因。
+            middleWare(req,res,next);
+        }
+    };
+    next();
+}
 
