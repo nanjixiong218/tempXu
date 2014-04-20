@@ -12,10 +12,43 @@ exports.userAction = function(req,res){
     //var html = render("/routeTemplate/views/事件委托以及dblclick与click.html");
     res.render("test.html",data);//
 
+};
+exports.addUser=function(req,res){
+    res.render("test.html",add);
 }
 //配置路由映射
-var routes=[];//路由
-use('/profile/:username',exports.userAction);
+exports.updateUser=function(req,res){
+    res.render("test.html",update);
+}
+//配置路由映射
+exports.deleteUser=function(req,res){
+    res.render("test.html",deleted);
+}
+//配置路由映射
+exports.getUser=function(req,res){
+    res.render("test.html",get);
+}
+//配置路由映射
+var routes={
+    all:[]
+};//路由
+var app={};
+/**
+ * RESTful分配
+ */
+['get','post','delete','put'].forEach(function(method){
+    routes[method] = [];
+    app[method] = function(path,action){
+        routes[method].push([pathRegexp(path),action]);
+    }
+});
+app.use = use;
+app.use('/user/:username',exports.userAction);
+
+app.get('/user/:username',exports.getUser);
+app.post('/user/:username',exports.addUser);
+app.delete('/user/:username',exports.deleteUser);
+app.put('/user/:username',exports.updateUser);
 //测试数据
 var users=[
     {
@@ -29,31 +62,26 @@ var data = {
     users:users,
     layout:''
 };
+var add = {
+    users:[{name:'add'}]
+};
+
+var deleted= {
+    users:[{name:'delete'}]
+};
+var update = {
+    users:[{name:'update'}]
+};
+var get = {
+    users:[{name:'get'}]
+};
 
 //创建服务器
 http.createServer(function(req,res){
     res.render = renderXuV6;
-    var pathname = url.parse(req.url).pathname;
-    for(var i = 0;i<routes.length;i++){
-        var route = routes[i];
-        var keys =route[0].keys;
-        var reg = route[0].regexp;
-        var matched = reg.exec(pathname);
-        if(matched){
-            var params ={};
-            for(var i=0;i<keys.length;i++){
-                var value = matched[i+1];
-                if(value){
-                    params[keys[i]]=value;
-                }
-
-            }
-            req.params = params;
-            var action = route[1];
-            action(req,res);
-            return;
-        }
-    }
+    //路由匹配，分发处理
+    route();
+    //处理不了才会执行到这，用try catch更合理一点
     handle404(req,res);
     /**
      * 第一个完整版渲染引擎,把它放在了createServer里面形成了一个闭包，这样才能访问到res，是不是不太好，最好是用中间件形式
@@ -90,6 +118,56 @@ http.createServer(function(req,res){
         res.writeHead(200,{'Content-Type':'text/html'});
         var html = compiled(data,escape);
         res.end(html);
+    }
+
+    /**
+     * 路由匹配处理方法
+     * @param pathname
+     * @param routes
+     */
+    function match(pathname,routes){
+        for(var i = 0;i<routes.length;i++){
+            var route = routes[i];
+            var keys =route[0].keys;
+            var reg = route[0].regexp;
+            var matched = reg.exec(pathname);
+            if(matched){
+                var params ={};
+                for(var i=0;i<keys.length;i++){
+                    var value = matched[i+1];
+                    if(value){
+                        params[keys[i]]=value;
+                    }
+                }
+                req.params = params;
+                var action = route[1];
+                action(req,res);
+                return true;
+            }
+        }
+        return false;
+    };
+    /**
+     * 路由分发部分
+     */
+    function route(){
+        var pathname = url.parse(req.url).pathname;
+        var method = req.method.toLowerCase();
+        //根据请求方法类型进行分发
+        if(routes.hasOwnProperty(method)){
+            if(match(pathname,routes[method])){
+                return;
+            }else{
+                //get中没有设置对应的匹配，尝试用all中的匹配进行处理
+                if(match(pathname,routes.all)){
+                    return;
+                }
+            }
+        }else{//没有设置method方法用all处理
+            if(match(pathname,routes.all)){
+                return;
+            }
+        }
     }
 
 
@@ -130,14 +208,16 @@ function pathRegexp(path){
         regexp:new RegExp('^'+path+'$')
     };
 }
+
 /**
  * 设置路由映射的方法
  * @param path
  * @param action
  */
 function use(path,action){
-    routes.push([pathRegexp(path),action]);
+    routes.all.push([pathRegexp(path),action]);
 }
+
 /**
  * 最简单的渲染
  * @param filePath
