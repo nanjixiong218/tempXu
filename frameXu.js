@@ -7,7 +7,8 @@ var VIEWS_FOLDER = './views/';//使用绝对路径还是不行
 //配置路由映射
 var routes={
     all:[]
-};//路由
+};
+//路由
 var app={};
 var middles={};
 middles["cookie"]=cookie;
@@ -34,14 +35,6 @@ middles["querystring"]=querystring;
     }
 });
 app.use = use;
-function frameXu(){
-    this.app=app;
-    this.middles = middles;
-};
-frameXu.prototype = {
-    createServerFunction: createServerFunction
-};
-var webXu = new frameXu();
 
 
 function createServerFunction() {
@@ -53,7 +46,8 @@ function createServerFunction() {
 //处理不了才会执行到这，用try catch更合理一点
         handle404(req, res);
         /**
-         * 第一个完整版渲染引擎,把它放在了createServer里面形成了一个闭包，这样才能访问到res，是不是不太好，最好是用中间件形式
+         * 第一个完整版渲染引擎,把它放在了createServer里面形成了一个闭包，这样才能访问到res，是不是不太好，
+         * 最好是用中间件形式
          * @param viewname
          * @param data
          */
@@ -310,5 +304,14 @@ function cookie(req, res, next) {
     req.cookie = cookies;
     next();
 };
-module.exports = webXu;
+
+function frameXu(){
+    this.app=app;
+    this.middles = middles;
+};
+frameXu.prototype = {
+    createServerFunction: createServerFunction
+};
+
+module.exports = new frameXu();
 
